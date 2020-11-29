@@ -1,0 +1,44 @@
+grammar de.darmstadt.tu.crossing.Statemachine with org.eclipse.xtext.xbase.Xtype
+
+generate statemachine "http://www.darmstadt.de/tu/crossing/Statemachine" // is this the definition of the file ending for the generated dsl? Nope
+
+Statemachine :
+	{Statemachine}
+	('events'
+		events+=Event+
+	'end')?
+	states+=State*
+;
+
+Event:
+	name=ID code=ID
+;
+
+State:
+	'state' name=ID
+		transitions+=Transition*
+	'end'
+;
+
+Transition:
+	event=[Event] '=>' state=[State]
+;
+
+//Statemachine :
+  //  {Statemachine}
+	//(states+=StateNode | transitions+=TransitionEdge)*;
+//StateNode:
+	//initial?='initial'? final?='final'? 'state' id=ID name=STRING? //add accepting statt end oder ist das final?
+	//'end';
+//TransitionEdge:
+	//sourceState=[StateNode] '=>' targetState=[StateNode] ('(' event=[Event]? ')')?; // sourceState is from, targetState is to, event necessary? is it of type Event, how to say?	
+// one usually uses the same name for rule and return type
+//LabelNode returns String: //own rule or extract the label from name in StateNode?
+	//name=STRING  // resolve String getName() from StateNode
+//;
+//LabelTransition returns Event:
+	//name=STRING?  // resolve Event getLabel() from TransitionEdge, call in Sirius by feature:name oder var:name
+//;	// do I need to give it as a rule or simply extract it from the TransitionEdge?
+//AcceptingStates:
+	  // Boolean getAccepting() from StateNode
+//NodeMap:
