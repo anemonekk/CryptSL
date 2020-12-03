@@ -2,3 +2,6 @@
 /.CrySLJvmModelInferrer.xtendbin
 /.CrySLRuntimeModule.xtendbin
 /.CrySLStandaloneSetup.xtendbin
+/.StatemachineGenerator.xtendbin
+/.StatemachineRuntimeModule.xtendbin
+/.StatemachineStandaloneSetup.xtendbin
