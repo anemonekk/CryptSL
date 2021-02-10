@@ -11,35 +11,53 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.eclipse.emf.common.util.EList;
 import org.eclipse.emf.common.util.URI;
+import org.eclipse.emf.ecore.EClass;
 import org.eclipse.emf.ecore.EFactory;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.emf.ecore.EReference;
+import org.eclipse.emf.ecore.EStructuralFeature;
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
 import org.eclipse.emf.ecore.resource.impl.ResourceFactoryImpl;
 import org.eclipse.emf.ecore.resource.impl.ResourceImpl;
 import org.eclipse.emf.ecore.resource.impl.ResourceSetImpl;
+import org.eclipse.emf.ecore.util.BasicExtendedMetaData;
+import org.eclipse.emf.ecore.util.EcoreUtil;
+import org.eclipse.emf.ecore.util.EcoreUtil.CrossReferencer;
+import org.eclipse.emf.ecore.util.ExtendedMetaData;
 import org.eclipse.emf.ecore.xmi.XMLResource;
 import org.eclipse.emf.ecore.xmi.impl.XMLResourceFactoryImpl;
+import org.eclipse.xtext.CrossReference;
+import org.eclipse.xtext.Grammar;
+import org.eclipse.xtext.GrammarUtil;
 import org.eclipse.xtext.XtextPackage;
 import org.eclipse.xtext.common.types.access.impl.ClasspathTypeProvider;
 import org.eclipse.xtext.resource.SaveOptions;
 import org.eclipse.xtext.resource.XtextResource;
 import org.eclipse.xtext.resource.XtextResourceFactory;
 import org.eclipse.xtext.resource.XtextResourceSet;
+import org.eclipse.xtext.scoping.IScope;
+import org.eclipse.xtext.scoping.IScopeProvider;
 import org.eclipse.xtext.serializer.impl.Serializer;
+import org.eclipse.xtext.serializer.tokens.CrossReferenceSerializer;
+import org.eclipse.xtext.serializer.tokens.ICrossReferenceSerializer;
 
 import com.google.inject.Binder;
+import com.google.inject.Guice;
+import com.google.inject.Inject;
 import com.google.inject.Injector;
 import com.google.inject.Provider;
 
 import de.darmstadt.tu.crossing.crySL.Event;
 import de.darmstadt.tu.crossing.CrySLStandaloneSetup;
+import de.darmstadt.tu.crossing.StatemachineRuntimeModule;
 import de.darmstadt.tu.crossing.StatemachineStandaloneSetup;
 import de.darmstadt.tu.crossing.crySL.CrySLFactory;
 import de.darmstadt.tu.crossing.crySL.Domainmodel;
@@ -48,6 +66,7 @@ import de.darmstadt.tu.crossing.crySL.SuperType;
 import de.darmstadt.tu.crossing.crySL.impl.CrySLFactoryImpl;
 import de.darmstadt.tu.crossing.crySL.impl.ExpressionImpl;
 import de.darmstadt.tu.crossing.crySL.impl.SuperTypeImpl;
+import de.darmstadt.tu.crossing.scoping.StatemachineScopeProvider;
 
 import org.eclipse.emf.ecore.resource.Resource;
 import org.eclipse.emf.ecore.resource.ResourceSet;
@@ -72,9 +91,21 @@ public class Main {
 			System.out.println("The objectss are: " + myTransitions.get(0) + " and " + myTransitions.get(1));
 		 */
 		
+		//Maybe needed to do the initialization of the language infrastructure:
+
+	    /*public static void main(String[] args) {
+	        Injector injector = new MyDslStandaloneSetup().createInjectorAndDoEMFRegistration();
+	        MyApplication application = injector.getInstance(MyApplication.class);
+	        application.run();
+	    }*/
+		
 		testSMG();
 		
 	}
+	
+	//@Inject
+    //private static IScopeProvider scopeProvider;
+	
 	
 	public static void testSMG() {
     	System.out.println("------------------invoking smg--------------------");
@@ -108,27 +139,58 @@ public class Main {
 		System.out.println("myTransitions: " + myTransitions);
 		System.out.println("myTransitionEvents: " + myTransitionEvents);
 		
+		
 		//code to create file
 		
-		StatemachineStandaloneSetup.doSetup();
+		//set up resource
 		
-		// instantiate objects by using factory class in the same package
+		//May work:
+		/*Injector injector = Guice.createInjector(new UserRuntimeModule());
+		XtextResourceSet resourceSet = injector.getInstance(XtextResourceSet.class);
+		resourceSet.addLoadOption(XtextResource.OPTION_RESOLVE_ALL, Boolean.TRUE);
+		Resource resource = resourceSet.getResource(URI.createURI(getUserFileLocationURI()), true);*/
+		/*StatemachineStandaloneSetup statemachineStandaloneSetup = new StatemachineStandaloneSetup();
+		final Injector injector = statemachineStandaloneSetup.createInjectorAndDoEMFRegistration();
+		XtextResourceSet resourceSet = injector.getInstance(XtextResourceSet.class);
+		
+		// or like this?
+		Injector injector2 = Guice.createInjector(new StatemachineRuntimeModule());
+		XtextResourceSet resourceSet2 = injector.getInstance(XtextResourceSet.class);
+		resourceSet.addLoadOption(XtextResource.OPTION_RESOLVE_ALL, Boolean.TRUE);*/
+	    
+		//next line does: new StatemachineStandaloneSetup().createInjectorAndDoEMFRegistration()
+		StatemachineStandaloneSetup.doSetup(); 
+		
+		ResourceSet set = new ResourceSetImpl(); 
+		
+		final ExtendedMetaData extendedMetaData =
+			     new BasicExtendedMetaData(set.getPackageRegistry());
+		set.getLoadOptions().put(XMLResource.OPTION_EXTENDED_META_DATA, extendedMetaData);
+		
+		//URI uri = URI.createFileURI("C:\\Users\\T440s\\git\\CryptSL\\test_stm\\test1e.statemachine");
+		URI uri = URI.createPlatformResourceURI("CryptSL\\test_stm\\test13m.statemachine", true); //path unmapped error
+		 
+		Resource resource = set.createResource(uri);
+		System.out.println("uri " + uri);
+	    //((ResourceImpl)resource).setIntrinsicIDToEObjectMap(new HashMap());
+		System.out.println("resource " + resource);
+				
+		// instantiate objects by using factory class in the same package, create AST objects with relations
 		Statemachine statemachine = StatemachineFactory.eINSTANCE.createStatemachine();
 		System.out.println(statemachine);
+		// ArrayList<CrossReference> crossReferences = null;
+		// ICrossReferenceSerializer crossRefSerializer;
+
+		de.darmstadt.tu.crossing.statemachine.State outstate = null;
+		StatemachineScopeProvider scopeProvider = new StatemachineScopeProvider();
+		System.out.println("scopeProvider: " + scopeProvider);
 		
-		// test set of integers, remove working
-		Set<Integer> setTest = new HashSet<Integer>();
-		System.out.println("setTest " + setTest);
-		setTest.add(1);
-		System.out.println("setTest " + setTest);
-		setTest.add(2);
-		System.out.println("setTest " + setTest);
-		setTest.remove(1);
-		System.out.println("setTest " + setTest);
-		
-		// new handling
+		// new handling of traversing the crysl model to create instances of new statemachine language
 		for(TransitionEdge e: myTransitions) {
-			System.out.println("create AST objects with relations.");
+			// check for duplicate events
+			/*if(sameEvent(myTransitions, e)) {
+				System.out.println("!!! found event that occurs twice: " + e);
+			}*/
 			de.darmstadt.tu.crossing.statemachine.Event event = null;
 	    	if(e.getLabel() instanceof SuperType) {
 	    		SuperType ev = (SuperType) e.getLabel();
@@ -144,156 +206,103 @@ public class Main {
 				if(e.getLeft().equals(s)) {
 					System.out.println("first " + e.getLeft());
 					System.out.println("create node");
-					de.darmstadt.tu.crossing.statemachine.State outstate = StatemachineFactory.eINSTANCE.createState();
-					outstate.setName("testName");
-					System.out.println("created node: " + outstate);
+					outstate = StatemachineFactory.eINSTANCE.createState();
+					outstate.setName("testName" + event.getName());
+					System.out.println("created node left: " + outstate);
 					
 			    	statemachine.getStates().add(outstate);
-			    	Boolean b = false; 
+			    	
 			    	// remove from list to not have a state twice
-			    	for(StateNode n: stateNodes) {
-						if(e.getLeft().equals(n)) {
-							System.out.println("want to remove " + n);
-							//stateNodes.add(new StateNode("test")); //adding works
-							
-							b = stateNodes.remove(n);
-						}
+			    	Iterator<StateNode> itr = stateNodes.iterator();
+			    	while(itr.hasNext()) {
+			    	   StateNode element = (StateNode) itr.next();
+			    	   if(e.getLeft().equals(element))
+			    	   {
+			    	       itr.remove();
+			    	       break;
+			    	   }
 			    	}
 			    	System.out.println("nodes " + stateNodes);
 				}
-			}
-			
-			//do not know why contains won't work
-			StateNode node1 = e.getLeft();
-			Boolean b1 = stateNodes.contains(node1);
-			if(b1) {
-				System.out.println("first " + e.getLeft());
-				System.out.println("create node");
-				de.darmstadt.tu.crossing.statemachine.State outstate = StatemachineFactory.eINSTANCE.createState();
-				outstate.setName("testName");
-				System.out.println("created node: " + outstate);
-				
-		    	statemachine.getStates().add(outstate);
-		    	//still have to remove from list
-		    	stateNodes.remove(e.getLeft());
 			}
 			
 			System.out.println("right " + e.getRight());
 			for(StateNode s: stateNodes) {
 				if(e.getRight().equals(s)) {
 					de.darmstadt.tu.crossing.statemachine.State instate = StatemachineFactory.eINSTANCE.createState();
-					instate.setName("testName");
-					System.out.println("created node: " + instate);
+					instate.setName("testName" + event.getName());
+					System.out.println("created node right: " + instate);
 					
 			    	statemachine.getStates().add(instate);
 			    	
 			    	// create transition, if both states and event are present since need to set those
-					de.darmstadt.tu.crossing.statemachine.Transition transition = StatemachineFactory.eINSTANCE.createTransition();
-				    transition.setEvent(event);
-			    	transition.setState(instate);
-			    	System.out.println("set event and state " + transition + " " + transition.getEvent() + " " + transition.getState());
-			    	instate.getTransitions().add(transition);
+			    	System.out.println("create transition ");
+					//!!de.darmstadt.tu.crossing.statemachine.Transition transition = StatemachineFactory.eINSTANCE.createTransition();
+					//!!System.out.println("created transition: " + transition);
+					
+					
+					// need to define the scope for the event and the state cross references for transition
+					//scopeProvider.getScope(outstate, stm.getState_Transitions);
+					//System.out.println(stm.StatemachinePackage().getState_Transitions());
+					
+					//!!transition.setEvent(event);
+					//!!transition.setFromState(outstate);
+			    	//!!transition.setEndState(instate);
+			    	//!!System.out.println("set event and state " + transition + " " + transition.getFromState() + " "+ transition.getEvent() + " " + transition.getEndState());			    	
 			    	
-			    	// remove from list
-			    	for(StateNode n: stateNodes) {
-						if(e.getRight().equals(n)) {
-							System.out.println("want to remove " + n);
-							stateNodes.remove(n);
-						}
-			    	}
-			    	System.out.println("nodes " + stateNodes);
+			    	//!!instate.getTransitions().add(transition);
+			    	//outstate.getTransitions()?
+			    	//!!statemachine.getTransitions().add(transition);
+			    	
+			    	IScope scopeEvent;
+			    	IScope scopeState;
+			    	IScope scopeTransitionState;
+			    	IScope scopeTransitionEvent;
+			    	//needs to be done for both cross references, i.e. state and event?
+			    	//same error for all three calls
+			    	//!!scopeTransitionEvent = scopeProvider.getScope(transition, StatemachinePackage.eINSTANCE.getTransition_Event());
+			    	//scopeTransitionState = scopeProvider.getScope(transition, StatemachinePackage.eINSTANCE.getTransition_State());
+			    	
+			    	//scopeTransitionEvent.getAllElements();
+			    	//System.out.println("scope transition event " + scopeTransitionEvent);
+			    	//System.out.println("scope transition state " + scopeTransitionState);
+			    	
+			    	//scope = scopeProvider.getScope(instate, StatemachinePackage.eINSTANCE.getTransition_State());
+			    	//System.out.println("scopeEvent is: " + scopeEvent);
+			    	//System.out.println("scopeState is: " + scopeState);
+			    	
+			    	// remove from list			    	
+			    	Iterator<StateNode> itr = stateNodes.iterator();
+			    	while(itr.hasNext()) {
+				    	   StateNode element = (StateNode) itr.next();
+				    	   if(e.getRight().equals(element))
+				    	   {
+				    	       itr.remove();
+				    	       break;
+				    	   }
+				    	}
+
+				    System.out.println("nodes " + stateNodes);
+				    outstate = instate; //needs enhancement for more specific rules, hardcoded for Cookie.crysl
 				}
 			}
-					
-			//does not work reliably		
-			/*if(stateNodes.contains(e.getRight())) {
-			    System.out.println("second " + e.getRight());
-				System.out.println("create node");
-				de.darmstadt.tu.crossing.statemachine.State instate = StatemachineFactory.eINSTANCE.createState();
-				instate.setName("testName");
-				System.out.println("created node: " + instate);
-				
-		    	statemachine.getStates().add(instate);
-		    	
-		    	// create transition, if both states and event are present since I need to set those
-				de.darmstadt.tu.crossing.statemachine.Transition transition = StatemachineFactory.eINSTANCE.createTransition();
-			    System.out.println("created transition: " + transition);
-			    transition.setEvent(event);
-		    	transition.setState(instate);
-		    	System.out.println("set event and state " + transition + " " + transition.getEvent() + " " + transition.getState());
-		    	instate.getTransitions().add(transition);
-		    	
-		    	//still have to remove from list
-		    	stateNodes.remove(e.getRight());
-			}*/
-			
-			
 		}
-		
-		/*for(TransitionEdge e : myTransitions) {
-	 		//System.out.println("stm events" + stm.getEvents().add(e));
-	    	//event.setName(e.getLabel().ge);
-	    	if(e.getLabel() instanceof SuperType) {
-	    		SuperType ev = (SuperType) e.getLabel();
-				System.out.println("create event");
-		    	de.darmstadt.tu.crossing.statemachine.Event event = StatemachineFactory.eINSTANCE.createEvent();
-	    		event.setName(((SuperType) ev).getName());
-	    		event.setCode(((SuperType) ev).getName());
-		    	System.out.println("created event: " + event);
-		    	System.out.println("created event name: " + event.getName());
-		    	System.out.println("created event code: " + event.getCode());
-		    	statemachine.getEvents().add(event);
-	    	}
-	     }
-	     for(StateNode n : stateNodes) {
-	    	System.out.println("create node");
-	    	de.darmstadt.tu.crossing.statemachine.State state = StatemachineFactory.eINSTANCE.createState();
-	 		//System.out.println("stm states" + stm.getStates().add(n));
-	    	//statemachineResource.getContents().add(state);
-	    	//state.setName(n.getName()); //ValueConverterException, look at that later
-	    	state.setName("testName");
-	    	System.out.println("created node: " + state);
-	    	System.out.println("created node name: " + state.getName());
-	    	
-	    	de.darmstadt.tu.crossing.statemachine.Transition transition = StatemachineFactory.eINSTANCE.createTransition();
-		    System.out.println("created transition: " + transition);
-	    	
-	    	statemachine.getStates().add(state); // 3 states added
-	     }
-	     for(/*TransitionEdge i : myTransitions*/ /*int i = 0; i < statemachine.getEvents().size(); i++) {
-	    	de.darmstadt.tu.crossing.statemachine.Transition transition = StatemachineFactory.eINSTANCE.createTransition();
-		    System.out.println("created transition: " + transition);
-		    // get source
-		    //System.out.println("src is " + i.getLeft());
-		    //System.out.println("target is " + i.getRight());
-		    // if(state is left)
-		    
-	    	// this handling needs enhancement! Only hardcoded here, no correct mapping yet
-		    transition.setEvent(statemachine.getEvents().get(i));
-	    	transition.setState(statemachine.getStates().get(i));
-	    	System.out.println("set event and state " + transition + " " + transition.getEvent() + " " + transition.getState());
-	    	
-		     for(int j = 0; j < statemachine.getStates().size(); j++) {
-		    	 System.out.println("state: " + j);
-		    	 statemachine.getStates().get(j).getTransitions().add(transition);
-		     }
-	     }*/
 
 		System.out.println("events: " + statemachine.getEvents());
 		System.out.println("states: " + statemachine.getStates());
-		for(State s: statemachine.getStates()) {
-			System.out.println("transitions: " + s.getTransitions());
+		//System.out.println("transitions: " + statemachine.getTransitions());
+		for(Transition t: statemachine.getTransitions()) {
+			System.out.println("transitions: " + t.getFromState() + " " + t.getEndState() + " " + t.getEvent());
 		}
 		
 		
-		//set up resource before serialization 
-	    
-		ResourceSet set = new ResourceSetImpl(); 
-		URI uri = URI.createFileURI("C:\\Users\\T440s\\Desktop\\test_stm\\test11.statemachine");
-		//Resource resource = set.createResource(URI.createFileURI("C:\\Users\\T440s\\Desktop\\test_stm\\test10.statemachine")); 
-		Resource resource = set.createResource(uri);
-	    //((ResourceImpl)resource).setIntrinsicIDToEObjectMap(new HashMap());
-		System.out.println("resource " + resource);
+		// serialize cross reference transition
+		//CrossReference crossReference = new CrossReference(transition);		
+		CrossReferenceSerializer crossRefSerializer2 = new CrossReferenceSerializer();
+		//crossRefSerializer.serializeCrossRef(semanticObject, crossref, target, node, errors)
+		
+		
+		// save
 		resource.getContents().add(statemachine);
 		System.out.println(resource);
 		System.out.println("content: " + resource.getContents().get(0)); // resource only stores parent
@@ -308,7 +317,6 @@ public class Main {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}*/
-		
 		//class cast exception
 		/*Map saveOptions = ((XMLResource) resource).getDefaultSaveOptions();
 	    saveOptions.put(XMLResource.OPTION_CONFIGURATION_CACHE, Boolean.TRUE);
@@ -330,6 +338,8 @@ public class Main {
             e.printStackTrace();
         }
 		
+        System.out.println("saved to " + uri);
+        
 	    // use the generated serializer for formatting a single model element
 	     
 		//Xtext serialization
@@ -380,6 +390,22 @@ public class Main {
 		resourceSet.addLoadOption(XtextResource.OPTION_RESOLVE_ALL, Boolean.TRUE);
 		*/
 	}
+	
+	//method for adding flag to events that occur more often
+		public static boolean sameEvent(List<TransitionEdge> edges, TransitionEdge e) {
+			int counter = 0;
+			System.out.println("inside sameEvent with" + e);
+			for(TransitionEdge ed: edges) {
+				if(ed.getLabel().equals(e.getLabel())) {
+					counter++;
+				}
+			}
+			System.out.println("counter: " + counter);
+			if(counter > 1) {
+				return true;
+			}
+			return false;
+		}
 	
 	// helper methods for resource creation and resource saving XML
 		public static Resource createAndAddResource(String outputFile, String[] fileextensions, ResourceSet rs) {
